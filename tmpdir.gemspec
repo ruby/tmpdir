@@ -1,8 +1,6 @@
-require_relative 'lib/tmpdir/version'
-
 Gem::Specification.new do |spec|
   spec.name          = "tmpdir"
-  spec.version       = Tmpdir::VERSION
+  spec.version       = "0.1.0"
   spec.authors       = ["Hiroshi SHIBATA"]
   spec.email         = ["hsbt@ruby-lang.org"]
 

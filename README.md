@@ -1,8 +1,6 @@
-# Tmpdir
+# tmpdir
 
-Welcome to your new gem! In this directory, you'll find the files you need to be able to package up your Ruby library into a gem. Put your Ruby code in the file `lib/tmpdir`. To experiment with that code, run `bin/console` for an interactive prompt.
-
-TODO: Delete this and the text above, and describe your gem
+retrieve temporary directory path
 
 ## Installation
 
@@ -22,7 +20,31 @@ Or install it yourself as:
 
 ## Usage
 
-TODO: Write usage instructions here
+Dir.mktmpdir creates a temporary directory.
+The directory is created with 0700 permission.
+
+Application should not change the permission to make the temporary directory accessible from other users.
+
+The prefix and suffix of the name of the directory is specified by
+the optional first argument, <i>prefix_suffix</i>.
+
+- If it is not specified or nil, "d" is used as the prefix and no suffix is used.
+- If it is a string, it is used as the prefix and no suffix is used.
+- If it is an array, first element is used as the prefix and second element is used as a suffix.
+
+```ruby
+Dir.mktmpdir {|dir| dir is ".../d..." }
+Dir.mktmpdir("foo") {|dir| dir is ".../foo..." }
+Dir.mktmpdir(["foo", "bar"]) {|dir| dir is ".../foo...bar" }
+```
+
+The directory is created under Dir.tmpdir or
+the optional second argument <i>tmpdir</i> if non-nil value is given.
+
+```ruby
+Dir.mktmpdir {|dir| dir is "#{Dir.tmpdir}/d..." }
+Dir.mktmpdir(nil, "/var/tmp") {|dir| dir is "/var/tmp/d..." }
+```
 
 ## Development
 
@@ -32,5 +54,5 @@ To install this gem onto your local machine, run `bundle exec rake install`. To 
 
 ## Contributing
 
-Bug reports and pull requests are welcome on GitHub at https://github.com/hsbt/tmpdir.
+Bug reports and pull requests are welcome on GitHub at https://github.com/ruby/tmpdir.
 

@@ -18,9 +18,18 @@ class Dir
   ##
   # Returns the operating system's temporary file path.
 
+  def self.get_systmpdir
+    if defined?(Ractor) && (Ractor.current != Ractor.main)
+      defined?(Etc.systmpdir) ? Etc.systmpdir : '/tmp'
+    else
+      @@systmpdir
+    end
+  end
+  private_class_method :get_systmpdir
+
   def self.tmpdir
     tmp = nil
-    ['TMPDIR', 'TMP', 'TEMP', ['system temporary path', @@systmpdir], ['/tmp']*2, ['.']*2].each do |name, dir = ENV[name]|
+    ['TMPDIR', 'TMP', 'TEMP', ['system temporary path', get_systmpdir], ['/tmp']*2, ['.']*2].each do |name, dir = ENV[name]|
       next if !dir
       dir = File.expand_path(dir)
       stat = File.stat(dir) rescue next
@@ -117,13 +126,14 @@ class Dir
 
     UNUSABLE_CHARS = "^,-.0-9A-Z_a-z~"
 
-    class << (RANDOM = Random.new)
+    class << (RANDOM = Object.new)
       MAX = 36**6 # < 0x100000000
       def next
         rand(MAX).to_s(36)
       end
     end
     private_constant :RANDOM
+    Ractor.make_shareable(RANDOM) if defined?(Ractor)
 
     def create(basename, tmpdir=nil, max_try: nil, **opts)
       origdir = tmpdir

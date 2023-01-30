@@ -5,37 +5,14 @@
 # $Id$
 #
 
-require 'fileutils'
-begin
-  require 'etc.so'
-rescue LoadError # rescue LoadError for miniruby
-end
+require_relative './tmpdir/tmpname'
 
 class Dir
-
-  @@systmpdir ||= defined?(Etc.systmpdir) ? Etc.systmpdir : '/tmp'
-
   ##
   # Returns the operating system's temporary file path.
-
+  #
   def self.tmpdir
-    ['TMPDIR', 'TMP', 'TEMP', ['system temporary path', @@systmpdir], ['/tmp']*2, ['.']*2].find do |name, dir|
-      unless dir
-        next if !(dir = ENV[name]) or dir.empty?
-      end
-      dir = File.expand_path(dir)
-      stat = File.stat(dir) rescue next
-      case
-      when !stat.directory?
-        warn "#{name} is not a directory: #{dir}"
-      when !stat.writable?
-        warn "#{name} is not writable: #{dir}"
-      when stat.world_writable? && !stat.sticky?
-        warn "#{name} is world-writable: #{dir}"
-      else
-        break dir
-      end
-    end or raise ArgumentError, "could not find a temporary directory"
+    Dir::Tmpname.tmpdir
   end
 
   # Dir.mktmpdir creates a temporary directory.
@@ -83,78 +60,7 @@ class Dir
   #    FileUtils.remove_entry dir
   #  end
   #
-  def self.mktmpdir(prefix_suffix=nil, *rest, **options)
-    base = nil
-    path = Tmpname.create(prefix_suffix || "d", *rest, **options) {|path, _, _, d|
-      base = d
-      mkdir(path, 0700)
-    }
-    if block_given?
-      begin
-        yield path.dup
-      ensure
-        unless base
-          stat = File.stat(File.dirname(path))
-          if stat.world_writable? and !stat.sticky?
-            raise ArgumentError, "parent directory is world writable but not sticky"
-          end
-        end
-        FileUtils.remove_entry path
-      end
-    else
-      path
-    end
-  end
-
-  # Temporary name generator
-  module Tmpname # :nodoc:
-    module_function
-
-    def tmpdir
-      Dir.tmpdir
-    end
-
-    # Unusable characters as path name
-    UNUSABLE_CHARS = "^,-.0-9A-Z_a-z~"
-
-    # Dedicated random number generator
-    RANDOM = Random.new
-    class << RANDOM # :nodoc:
-      # Maximum random number
-      MAX = 36**6 # < 0x100000000
-
-      # Returns new random string upto 6 bytes
-      def next
-        rand(MAX).to_s(36)
-      end
-    end
-    private_constant :RANDOM
-
-    # Generates and yields random names to create a temporary name
-    def create(basename, tmpdir=nil, max_try: nil, **opts)
-      origdir = tmpdir
-      tmpdir ||= tmpdir()
-      n = nil
-      prefix, suffix = basename
-      prefix = (String.try_convert(prefix) or
-                raise ArgumentError, "unexpected prefix: #{prefix.inspect}")
-      prefix = prefix.delete(UNUSABLE_CHARS)
-      suffix &&= (String.try_convert(suffix) or
-                  raise ArgumentError, "unexpected suffix: #{suffix.inspect}")
-      suffix &&= suffix.delete(UNUSABLE_CHARS)
-      begin
-        t = Time.now.strftime("%Y%m%d")
-        path = "#{prefix}#{t}-#{$$}-#{RANDOM.next}"\
-               "#{n ? %[-#{n}] : ''}#{suffix||''}"
-        path = File.join(tmpdir, path)
-        yield(path, n, opts, origdir)
-      rescue Errno::EEXIST
-        n ||= 0
-        n += 1
-        retry if !max_try or n < max_try
-        raise "cannot generate temporary name using `#{basename}' under `#{tmpdir}'"
-      end
-      path
-    end
+  def self.mktmpdir(prefix_suffix=nil, *rest, **options, &block)
+    Dir::Tmpname.mktmpdir(prefix_suffix, *rest, **options, &block)
   end
 end

@@ -12,14 +12,14 @@ rescue LoadError # rescue LoadError for miniruby
 end
 
 class Dir
-
-  @@systmpdir ||= defined?(Etc.systmpdir) ? Etc.systmpdir : '/tmp'
+  SYSTMPDIR = defined?(Etc.systmpdir) ? Etc.systmpdir.dup.freeze : '/tmp'
+  private_constant :SYSTMPDIR
 
   ##
   # Returns the operating system's temporary file path.
 
   def self.tmpdir
-    ['TMPDIR', 'TMP', 'TEMP', ['system temporary path', @@systmpdir], ['/tmp']*2, ['.']*2].find do |name, dir|
+    ['TMPDIR', 'TMP', 'TEMP', ['system temporary path', SYSTMPDIR], ['/tmp']*2, ['.']*2].find do |name, dir|
       unless dir
         next if !(dir = ENV[name]) or dir.empty?
       end

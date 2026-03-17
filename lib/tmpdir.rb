@@ -22,6 +22,18 @@ class Dir
   #   require 'tmpdir'
   #   Dir.tmpdir # => "/tmp"
 
+  # Returns whether world-writable directories without the sticky bit
+  # should be allowed as temporary directories.
+  # Set +RUBY_TMPDIR_ALLOW_WORLD_WRITABLE+ environment variable to
+  # <code>1</code>, <code>true</code>, or <code>yes</code> to allow.
+  # This is useful in container environments (e.g. Kubernetes with
+  # emptyDir volumes) where temporary directories are mounted with
+  # mode 0777 without the sticky bit.
+  def self.allow_world_writable?
+    /\A(1|true|yes)\z/i.match?(ENV["RUBY_TMPDIR_ALLOW_WORLD_WRITABLE"])
+  end
+  private_class_method :allow_world_writable?
+
   def self.tmpdir
     Tmpname::TMPDIR_CANDIDATES.find do |name, dir|
       unless dir
@@ -35,8 +47,19 @@ class Dir
       when !File.writable?(dir)
         # We call File.writable?, not stat.writable?, because you can't tell if a dir is actually
         # writable just from stat; OS mechanisms other than user/group/world bits can affect this.
+        #
+        # However, in some container environments (e.g. Kubernetes with read-only root filesystem
+        # and emptyDir volumes), File.writable? may return false even though the directory is
+        # actually writable via mounted volumes. Fall back to stat.writable? in that case.
+        if stat.writable?
+          warn "#{name}: File.writable? reports not writable but file mode bits suggest writable, using anyway: #{dir}"
+          break dir
+        end
         warn "#{name} is not writable: #{dir}"
       when stat.world_writable? && !stat.sticky?
+        if allow_world_writable?
+          break dir
+        end
         warn "#{name} is world-writable: #{dir}"
       else
         break dir
@@ -104,7 +127,7 @@ class Dir
       begin
         yield path.dup
       ensure
-        unless base
+        unless base or allow_world_writable?
           base = File.dirname(path)
           stat = File.stat(base)
           if stat.world_writable? and !stat.sticky?

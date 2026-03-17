@@ -92,6 +92,7 @@ class TestTmpdir < Test::Unit::TestCase
 
   def test_writable_fallback_both_fail
     omit "no meaning on this platform" if /mswin|mingw/ =~ RUBY_PLATFORM
+    omit "root can write to any directory" if Process.uid == 0
     Dir.mktmpdir do |tmpdir|
       envs = %w[TMPDIR TMP TEMP]
       oldenv = envs.each_with_object({}) {|v, h| h[v] = ENV.delete(v)}

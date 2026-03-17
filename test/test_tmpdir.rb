@@ -47,6 +47,50 @@ class TestTmpdir < Test::Unit::TestCase
     end
   end
 
+  def test_world_writable_allowed_by_env
+    omit "no meaning on this platform" if /mswin|mingw/ =~ RUBY_PLATFORM
+    Dir.mktmpdir do |tmpdir|
+      envs = %w[TMPDIR TMP TEMP]
+      oldenv = envs.each_with_object({}) {|v, h| h[v] = ENV.delete(v)}
+      old_allow = ENV["RUBY_TMPDIR_ALLOW_WORLD_WRITABLE"]
+      begin
+        ENV[envs[0]] = tmpdir
+        File.chmod(0777, tmpdir)
+
+        # Without env var, world-writable without sticky should be rejected
+        ENV["RUBY_TMPDIR_ALLOW_WORLD_WRITABLE"] = nil
+        assert_not_equal(tmpdir, assert_warn(/world-writable/) {Dir.tmpdir})
+
+        # With env var set, world-writable without sticky should be accepted
+        ENV["RUBY_TMPDIR_ALLOW_WORLD_WRITABLE"] = "1"
+        assert_equal(tmpdir, Dir.tmpdir)
+
+        # mktmpdir should also work
+        newdir = Dir.mktmpdir("d", tmpdir) do |dir|
+          assert_file.directory? dir
+          assert_equal(tmpdir, File.dirname(dir))
+          dir
+        end
+        assert_file.not_exist?(newdir)
+
+        # Other accepted values
+        %w[true yes TRUE Yes].each do |val|
+          ENV["RUBY_TMPDIR_ALLOW_WORLD_WRITABLE"] = val
+          assert_equal(tmpdir, Dir.tmpdir, "should accept with value #{val.inspect}")
+        end
+
+        # Invalid values should not bypass
+        %w[0 false no 2 enabled].each do |val|
+          ENV["RUBY_TMPDIR_ALLOW_WORLD_WRITABLE"] = val
+          assert_not_equal(tmpdir, Dir.tmpdir, "should reject with value #{val.inspect}")
+        end
+      ensure
+        ENV["RUBY_TMPDIR_ALLOW_WORLD_WRITABLE"] = old_allow
+        ENV.update(oldenv)
+      end
+    end
+  end
+
   def test_tmpdir_not_empty_parent
     Dir.mktmpdir do |tmpdir|
       envs = %w[TMPDIR TMP TEMP]

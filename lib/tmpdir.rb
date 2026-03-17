@@ -35,6 +35,14 @@ class Dir
       when !File.writable?(dir)
         # We call File.writable?, not stat.writable?, because you can't tell if a dir is actually
         # writable just from stat; OS mechanisms other than user/group/world bits can affect this.
+        #
+        # However, in some container environments (e.g. Kubernetes with read-only root filesystem
+        # and emptyDir volumes), File.writable? may return false even though the directory is
+        # actually writable via mounted volumes. Fall back to stat.writable? in that case.
+        if stat.writable?
+          warn "#{name}: File.writable? reports not writable but file mode bits suggest writable, using anyway: #{dir}"
+          break dir
+        end
         warn "#{name} is not writable: #{dir}"
       when stat.world_writable? && !stat.sticky?
         warn "#{name} is world-writable: #{dir}"

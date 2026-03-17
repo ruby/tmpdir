@@ -59,6 +59,58 @@ class TestTmpdir < Test::Unit::TestCase
     end
   end
 
+  def test_writable_fallback_to_stat
+    omit "no meaning on this platform" if /mswin|mingw/ =~ RUBY_PLATFORM
+    Dir.mktmpdir do |tmpdir|
+      envs = %w[TMPDIR TMP TEMP]
+      oldenv = envs.each_with_object({}) {|v, h| h[v] = ENV.delete(v)}
+      begin
+        ENV[envs[0]] = tmpdir
+
+        # Stub File.writable? to return false for our tmpdir
+        # This simulates container environments where access(2) returns false
+        # even though the directory is actually writable
+        original_writable = File.method(:writable?)
+        File.define_singleton_method(:writable?) do |path|
+          if path == tmpdir
+            false
+          else
+            original_writable.call(path)
+          end
+        end
+
+        # Should fall back to stat.writable? and succeed with a warning
+        assert_equal(tmpdir, assert_warn(/File\.writable\? reports not writable but file mode bits suggest writable/) { Dir.tmpdir })
+
+      ensure
+        # Restore original File.writable?
+        File.define_singleton_method(:writable?, original_writable) if original_writable
+        ENV.update(oldenv)
+      end
+    end
+  end
+
+  def test_writable_fallback_both_fail
+    omit "no meaning on this platform" if /mswin|mingw/ =~ RUBY_PLATFORM
+    Dir.mktmpdir do |tmpdir|
+      envs = %w[TMPDIR TMP TEMP]
+      oldenv = envs.each_with_object({}) {|v, h| h[v] = ENV.delete(v)}
+      begin
+        ENV[envs[0]] = tmpdir
+
+        # Make directory not writable (both File.writable? and stat.writable? will return false)
+        File.chmod(0555, tmpdir)
+
+        # Should reject the directory with "not writable" warning
+        assert_not_equal(tmpdir, assert_warn(/is not writable/) { Dir.tmpdir })
+
+      ensure
+        File.chmod(0755, tmpdir)
+        ENV.update(oldenv)
+      end
+    end
+  end
+
   def test_no_homedir
     bug7547 = '[ruby-core:50793]'
     home, ENV["HOME"] = ENV["HOME"], nil

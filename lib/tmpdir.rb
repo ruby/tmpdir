@@ -149,7 +149,17 @@ class Dir
 
       # Returns new random string upto 6 bytes
       def next
-        (::Random.urandom(4).unpack1("L")%MAX).to_s(36)
+        begin
+          (::Random.urandom(4).unpack1("L")%MAX).to_s(36)
+        rescue RuntimeError
+          begin
+            require 'openssl'
+          rescue NoMethodError
+            raise NotImplementedError, "No random device"
+          else
+            (OpenSSL::Random.random_bytes(4).unpack1("L")%MAX).to_s(36)
+          end
+        end
       end
     end
     RANDOM.freeze

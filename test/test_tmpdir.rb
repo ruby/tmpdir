@@ -90,9 +90,26 @@ class TestTmpdir < Test::Unit::TestCase
     end
   end
 
+  def test_tmpdir_rejects_world_writable_non_sticky_before_writability
+    omit "no meaning on this platform" if /mswin|mingw/ =~ RUBY_PLATFORM
+    Dir.mktmpdir do |tmpdir|
+      envs = %w[TMPDIR TMP TEMP]
+      oldenv = envs.each_with_object({}) {|v, h| h[v] = ENV.delete(v)}
+      begin
+        ENV[envs[0]] = tmpdir
+        File.chmod(0777, tmpdir)
+
+        assert_not_equal(tmpdir, assert_warn(/is world-writable/) { Dir.tmpdir })
+      ensure
+        File.chmod(0755, tmpdir)
+        ENV.update(oldenv)
+      end
+    end
+  end
+
   def test_writable_fallback_both_fail
     omit "no meaning on this platform" if /mswin|mingw/ =~ RUBY_PLATFORM
-    omit "root can write to any directory" if Process.uid == 0
+    omit "root can write to any directory" if Process.euid == 0
     Dir.mktmpdir do |tmpdir|
       envs = %w[TMPDIR TMP TEMP]
       oldenv = envs.each_with_object({}) {|v, h| h[v] = ENV.delete(v)}
